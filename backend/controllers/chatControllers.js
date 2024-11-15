@@ -1,6 +1,6 @@
 
 const asyncHandler = require('express-async-handler')
-const chat=require("../models/chatModels")
+const Chat=require("../models/chatModels")
 const User=require("../models/userModels")
 const accessChat= asyncHandler(async(req,res)=>{
     const {userId}=req.body
@@ -11,7 +11,7 @@ const accessChat= asyncHandler(async(req,res)=>{
         throw new Error('User not found')
     }
 
-    var isChat=await chat.find({
+    var isChat=await Chat.find({
         isGroupChat:false,
         $and:[
             {users:{$elemMatch:{$eq:req.user._id}}},
@@ -34,8 +34,8 @@ const accessChat= asyncHandler(async(req,res)=>{
         }
     }
     try {
-        const createdChat=await chat.create(chatData)
-        const fullChat=await chat.findOne({_id:createdChat._id}).populate(
+        const createdChat=await Chat.create(chatData)
+        const fullChat=await Chat.findOne({_id:createdChat._id}).populate(
             "users",
             "- password"
         )
@@ -46,5 +46,30 @@ const accessChat= asyncHandler(async(req,res)=>{
 
     }
 })
+const fetchChats=asyncHandler(async(req,res)=>{
+    try {
+        Chat.find({users:{$elemMatch:{$eq:req.user._id}}})
+        .populate("users","-password")
+        .populate("groupAdmin","-password")
+        .populate("latestMessage")
+        .sort({updatedAt:-1})
+        .then(async(results)=>{
+            results=await User.populate(results,{
+                path:"latestMessage.sender",
+                select:"name pic email",
+            })
+            res.status(200).send(results)
+        })
+    } catch (error) {
+        
+        res.status(400)
+        throw new Error(error.message)
+    }
+})
 
-module.exports={accessChat}
+const createGroupChat=asyncHandler(async(req,res)=>{
+    if(!req.body.users || !req.body.name) {
+        return res.status(400).send({message:"Please Enter all the fields"})
+    }
+})
+module.exports={accessChat,fetchChats,createGroupChat}
